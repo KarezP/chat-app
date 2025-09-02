@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Proxy vidare allt under /api till Railway (bevarar pathen)
+[[redirects]]
+  from = "/api/*"
+  to = "https://chatify-api.up.railway.app/:splat"
+  status = 200
+  force = true
+
+# SPA-fallback för React Router (måste vara sist)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
