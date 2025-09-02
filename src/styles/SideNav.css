@@ -1,0 +1,68 @@
+.sidenav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 220px;
+  background: #1f616a;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  color: white;
+}
+
+.sidenav-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, .2);
+}
+
+.sidenav-logo {
+  height: 100px;
+  width: auto;
+  display: block;
+}
+
+.sidenav-title {
+  font-weight: 700;
+  margin: 8px 0 16px;
+}
+
+.sidenav-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  margin: 8px 0 12px;
+  background: rgba(255, 255, 255, .06);
+  border-radius: 10px;
+  color: #fff;
+}
+
+.sidenav-user__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+}
+
+.sidenav-user__name {
+  font-weight: 700;
+}
+
+.sidenav-actions {
+  margin-top: auto;
+}
+
+.sidenav-btn.danger {
+  background: #f3c6cf;
+  color: #111;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}

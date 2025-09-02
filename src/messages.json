@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "userId": 999,
+    "text": "Hej, jag är den fejkade användaren 👋",
+    "createdAt": "2025-08-25T08:00:00Z"
+  },
+  {
+    "id": 2,
+    "userId": 1,
+    "text": "Hur mår du idag? 😎",
+    "createdAt": "2025-08-25T08:01:00Z"
+  },
+  {
+    "id": 3,
+    "userId": 999,
+    "text": "Jag är bra du då!",
+    "createdAt": "2025-08-25T08:02:00Z"
+  },
+  {
+    "id": 4,
+    "userId": 1,
+    "text": "jag väntar bara på att kaffet ska kicka in ☕️😂",
+    "createdAt": "2025-08-25T08:03:00Z"
+  },
+  {
+    "id": 5,
+    "userId": 999,
+    "text": "Bra, för jag tänkte spamma dig med memes hela dagen 🤪",
+    "createdAt": "2025-08-25T08:04:00Z"
+  },
+  {
+    "id": 6,
+    "userId": 1,
+    "text": "Perfekt, min hjärna kör ändå i viloläge måndag morgon 😴",
+    "createdAt": "2025-08-25T08:05:00Z"
+  },
+  {
+    "id": 7,
+    "userId": 999,
+    "text": "Visste du att 100% av dem som sover… är trötta? 🤯",
+    "createdAt": "2025-08-25T08:06:00Z"
+  },
+  {
+    "id": 8,
+    "userId": 1,
+    "text": "Wow, Nobelpris i logik till dig 🏆🤣",
+    "createdAt": "2025-08-25T08:07:00Z"
+  },
+  {
+    "id": 9,
+    "userId": 999,
+    "text": "Okej, men seriöst… pizza till frukost: ja eller nej? 🍕🤔",
+    "createdAt": "2025-08-25T08:08:00Z"
+  },
+  {
+    "id": 10,
+    "userId": 1,
+    "text": "Alltid JA! Pizza är ett heltidsjobb ❤️",
+    "createdAt": "2025-08-25T08:09:00Z"
+  }
+]

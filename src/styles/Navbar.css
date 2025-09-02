@@ -1,0 +1,44 @@
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;               
+  height: 80px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: #3d8a89;
+  border-bottom: 1px solid #015d62;
+}
+
+.brand { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  text-decoration: none; 
+  color: #111; 
+}
+
+.brand-logo { 
+  height: 90px;   
+  width: auto; 
+  display: block; 
+}
+
+.brand-name { 
+  font-weight: 800; 
+  font-size: 1.4rem;   
+  letter-spacing: .3px; 
+}
+
+.actions a { 
+  margin-left: 16px; 
+  font-size: 1rem; 
+  color: #ffffff; 
+  text-decoration: none; 
+}
+.actions a:hover { color: #000; }
+
+html, body { margin: 0; }
