@@ -1,6 +1,5 @@
 // Router.jsx
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Chat from "./pages/Chat";
@@ -32,12 +31,9 @@ function AppRoutes({ isAuthed }) {
 }
 
 export default function Router() {
-  const [isAuthed, setIsAuthed] = useState(!!localStorage.getItem("token"));
-  useEffect(() => {
-    const onStorage = () => setIsAuthed(!!localStorage.getItem("token"));
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  // 🔑 Läs auth-status direkt vid varje render (ingen state/lyssnare behövs)
+  const isAuthed = !!localStorage.getItem("token");
+
   return (
     <BrowserRouter>
       <AppRoutes isAuthed={isAuthed} />
