@@ -5,9 +5,14 @@ import Register from "./pages/Register";
 import Chat from "./pages/Chat";
 import Navbar from "./components/Navbar";
 
-function AppRoutes({ isAuthed }) {
+function isAuthedNow() {
+  return !!(localStorage.getItem("token") || sessionStorage.getItem("token"));
+}
+
+function AppRoutes() {
   const { pathname } = useLocation();
   const isChat = pathname === "/chat";
+  const isAuthed = isAuthedNow(); // ← läs direkt, inget React-state
 
   return (
     <>
@@ -31,12 +36,9 @@ function AppRoutes({ isAuthed }) {
 }
 
 export default function Router() {
-  // 🔑 Läs auth-status direkt vid varje render (ingen state/lyssnare behövs)
-  const isAuthed = !!localStorage.getItem("token");
-
   return (
     <BrowserRouter>
-      <AppRoutes isAuthed={isAuthed} />
+      <AppRoutes />
     </BrowserRouter>
   );
 }
