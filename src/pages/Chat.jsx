@@ -7,23 +7,61 @@ import "../styles/Chat.css";
 import SideNav from "../components/SideNav";
 
 const BASE_URL = "https://chatify-api.up.railway.app";
-const BOT_STORE_KEY = "botMsgs_v1";
+const BOT_STORE_PREFIX = "botMsgs_v1";
 
-/* ----- Bot-historik ---- */
-function loadBotMessages() {
+/* ------------------------- helpers: nycklar/lagring ------------------------ */
+function simpleHash(s = "") {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return String(h >>> 0);
+}
+function tryParseJwtPayload(jwt) {
   try {
-    const raw = localStorage.getItem(BOT_STORE_KEY);
+    const [, payload] = String(jwt).split(".");
+    if (!payload) return {};
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json);
+  } catch {
+    return {};
+  }
+}
+function getStableUserKey({ token, currentUser }) {
+  const storedId = localStorage.getItem("userId");
+  if (storedId) return `uid:${storedId}`;
+
+  const cuId =
+    currentUser?.id ??
+    currentUser?.userId ??
+    currentUser?._id ??
+    currentUser?.user?.id ??
+    currentUser?.user?.userId ??
+    currentUser?.user?._id;
+  if (cuId != null) return `uid:${String(cuId)}`;
+
+  const p = tryParseJwtPayload(token);
+  const claim = p.sub || p.userId || p.id || p.email || p.username;
+  if (claim) return `claim:${String(claim)}`;
+
+  return `tok:${simpleHash(String(token || ""))}`;
+}
+function getBotKey(token, currentUser) {
+  const who = getStableUserKey({ token, currentUser });
+  return `${BOT_STORE_PREFIX}:${who}`;
+}
+function loadBotMessagesFor(key) {
+  try {
+    const raw = localStorage.getItem(key);
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr : [];
   } catch {
     return [];
   }
 }
-function saveBotMessages(arr) {
-  localStorage.setItem(BOT_STORE_KEY, JSON.stringify(arr));
+function saveBotMessagesFor(key, arr) {
+  localStorage.setItem(key, JSON.stringify(arr));
 }
 
-/* ----- Tidsformat ---- */
+/* ------------------------------ formatering ------------------------------- */
 function toLocalTime(iso) {
   if (!iso) return "";
   const t = Date.parse(iso);
@@ -36,7 +74,7 @@ function toLocalTime(iso) {
       });
 }
 
-/* ----- Vem är jag? (håller din gamla, robusta logik) ---- */
+/* ----------------------------- identitetslogik ---------------------------- */
 function buildIdentity(currentUser, storedUsername) {
   const ids = new Set(
     [
@@ -66,8 +104,26 @@ function buildIdentity(currentUser, storedUsername) {
 
   return { ids, names };
 }
+function hasNameMatch(set, s) {
+  if (!s) return false;
+  const x = String(s).trim().toLowerCase();
+  for (const n of set) if (String(n).trim().toLowerCase() === x) return true;
+  return false;
+}
+function isMine(msg, my, usersMap) {
+  if (!msg) return false;
+  const uid = String(msg.uid ?? msg.userId ?? msg.user?.id ?? "");
+  if (uid && my.ids.has(uid)) return true;
+  const nameOnMsg = msg.user?.username ?? msg.username ?? msg.authorName ?? "";
+  if (hasNameMatch(my.names, nameOnMsg)) return true;
+  const mapName = uid && usersMap ? usersMap[uid] : "";
+  if (hasNameMatch(my.names, mapName)) return true;
+  const storedId = localStorage.getItem("userId");
+  if (storedId && uid && storedId === uid) return true;
+  return false;
+}
 
-/* ----- Plocka ut avsändar-ID från olika former ---- */
+/* ----------------------------- msg-normalisering -------------------------- */
 function pickUid(m) {
   const cand = [
     m?.uid,
@@ -81,8 +137,6 @@ function pickUid(m) {
   ].find((x) => x != null);
   return cand != null ? String(cand) : null;
 }
-
-/* ----- Normalisera inkommande meddelanden till ett gemensamt format ---- */
 function normalizeMsg(m) {
   const id = m?.id ?? m?._id ?? m?.messageId ?? m?.uuid ?? null;
   const text = m?.text ?? m?.message ?? m?.content ?? "";
@@ -117,62 +171,24 @@ function normalizeMsg(m) {
 
   return { id, text, uid, createdAtIso, user: finalUser };
 }
-
-/* ----- Försök hitta id i djupt svar (du använder detta vid send) ---- */
 function extractIdDeep(obj, depth = 0) {
   if (!obj || typeof obj !== "object" || depth > 3) return null;
-
-  for (const k of ["id", "_id", "messageId", "uuid"]) {
-    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) {
-      return obj[k];
-    }
-  }
-
-  for (const k of ["data", "message", "result"]) {
+  for (const k of ["id", "_id", "messageId", "uuid"])
+    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) return obj[k];
+  for (const k of ["data", "message", "result"])
     if (obj[k]) {
       const found = extractIdDeep(obj[k], depth + 1);
       if (found != null) return found;
     }
-  }
-
-  for (const v of Object.values(obj)) {
+  for (const v of Object.values(obj))
     if (v && typeof v === "object") {
       const found = extractIdDeep(v, depth + 1);
       if (found != null) return found;
     }
-  }
-
   return null;
 }
 
-/* ----- Namnmatch-hjälp ---- */
-function hasNameMatch(set, s) {
-  if (!s) return false;
-  const x = String(s).trim().toLowerCase();
-  for (const n of set) if (String(n).trim().toLowerCase() === x) return true;
-  return false;
-}
-
-/* ----- Är meddelandet mitt? (din ursprungslogik) ---- */
-function isMine(msg, my, usersMap) {
-  if (!msg) return false;
-  const uid = String(msg.uid ?? msg.userId ?? msg.user?.id ?? "");
-  if (uid && my.ids.has(uid)) return true;
-
-  const nameOnMsg = msg.user?.username ?? msg.username ?? msg.authorName ?? "";
-  if (hasNameMatch(my.names, nameOnMsg)) return true;
-
-  const mapName = uid && usersMap ? usersMap[uid] : "";
-  if (hasNameMatch(my.names, mapName)) return true;
-
-  const storedId = localStorage.getItem("userId");
-  if (storedId && uid && storedId === uid) return true;
-
-  return false;
-}
-
-/* =================================================================== */
-
+/* ================================== Chat ================================== */
 export default function Chat() {
   const navigate = useNavigate();
 
@@ -215,9 +231,9 @@ export default function Chat() {
   const myDisplayName = (currentUser?.username || storedName || "Du").trim();
   const myAvatar =
     currentUser?.avatar ||
-    `https://i.pravatar.cc/150?u=${encodeURIComponent(
-      myDisplayName || "me"
-    )}`;
+    `https://i.pravatar.cc/150?u=${encodeURIComponent(myDisplayName || "me")}`;
+
+  const botKey = getBotKey(token, currentUser);
 
   useEffect(() => {
     try {
@@ -238,7 +254,6 @@ export default function Chat() {
         });
         const data = await res.json();
         if (!Array.isArray(data)) return;
-
         const map = {};
         data.forEach((u) => {
           const ids = buildIdentity(u, null).ids;
@@ -262,7 +277,7 @@ export default function Chat() {
         ? apiData
         : apiData?.messages ?? apiData?.data ?? [];
       const normalizedReal = real.map(normalizeMsg);
-      const localBot = loadBotMessages();
+      const localBot = loadBotMessagesFor(botKey);
       setMessages([...normalizedReal, ...localBot]);
     } catch (e) {
       const msg =
@@ -275,7 +290,9 @@ export default function Chat() {
 
   useEffect(() => {
     load();
-  }, []);
+    // när botKey ändras (ny användare/token) laddar vi rätt historik
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botKey]);
 
   async function handleSend() {
     const raw = text.trim();
@@ -322,8 +339,8 @@ export default function Chat() {
       setTimeout(() => {
         setMessages((prev) => {
           const next = [...prev, bot];
-          const stored = loadBotMessages();
-          saveBotMessages([...stored, bot]);
+          const stored = loadBotMessagesFor(botKey);
+          saveBotMessagesFor(botKey, [...stored, bot]);
           return next;
         });
       }, 900);
@@ -345,8 +362,8 @@ export default function Chat() {
 
     if (isBot) {
       setMessages((prev) => prev.filter((x) => x.id !== m.id));
-      const kept = loadBotMessages().filter((x) => x.id !== m.id);
-      saveBotMessages(kept);
+      const kept = loadBotMessagesFor(botKey).filter((x) => x.id !== m.id);
+      saveBotMessagesFor(botKey, kept);
       return;
     }
 

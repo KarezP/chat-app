@@ -3,6 +3,43 @@ import { useNavigate, Link } from "react-router-dom";
 import { getCSRF, login as apiLogin } from "../services/auth-api";
 import "../styles/Login.css";
 
+const BOT_STORE_PREFIX = "botMsgs_v1";
+
+function simpleHash(s = "") {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return String(h >>> 0);
+}
+function tryParseJwtPayload(jwt) {
+  try {
+    const [, payload] = String(jwt).split(".");
+    if (!payload) return {};
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json);
+  } catch {
+    return {};
+  }
+}
+function getStableUserKey({ token, user }) {
+  const uId =
+    user?.id ??
+    user?.userId ??
+    user?._id ??
+    user?.user?.id ??
+    user?.user?.userId ??
+    user?.user?._id;
+  if (uId != null) return `uid:${String(uId)}`;
+
+  const p = tryParseJwtPayload(token);
+  const claim = p.sub || p.userId || p.id || p.email || p.username;
+  if (claim) return `claim:${String(claim)}`;
+
+  return `tok:${simpleHash(String(token || ""))}`;
+}
+function getBotKey(token, user) {
+  return `${BOT_STORE_PREFIX}:${getStableUserKey({ token, user })}`;
+}
+
 export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -39,8 +76,20 @@ export default function Login() {
       if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
       if (data.user?.id != null) localStorage.setItem("userId", String(data.user.id));
 
-      localStorage.removeItem("botMsgs_v1");
-      localStorage.removeItem("messages");
+      // MIGRERA ev. gammal global bot-historik till per-användare-nyckel
+      const oldGlobal = localStorage.getItem(BOT_STORE_PREFIX);
+      if (oldGlobal) {
+        const perUserKey = getBotKey(jwt, data.user);
+        // om perUserKey redan har något, låt det vinna; annars flytta över
+        if (!localStorage.getItem(perUserKey)) {
+          localStorage.setItem(perUserKey, oldGlobal);
+        }
+        localStorage.removeItem(BOT_STORE_PREFIX);
+      }
+
+      // Viktigt: rensa INTE bot-historik globalt här, annars försvinner den.
+      // Om du vill rensa server-cache för meddelanden kan du lämna den ifred också,
+      // Chat.jsx hämtar ändå från API vid laddning.
 
       navigate("/chat", { replace: true });
     } catch (err) {
