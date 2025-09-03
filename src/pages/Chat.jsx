@@ -7,23 +7,41 @@ import "../styles/Chat.css";
 import SideNav from "../components/SideNav";
 
 const BASE_URL = "https://chatify-api.up.railway.app";
-const BOT_STORE_KEY = "botMsgs_v1";
+const BOT_STORE_PREFIX = "botMsgs_v1";
 
-/* ----- Bot-historik ---- */
-function loadBotMessages() {
+function simpleHash(s = "") {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return String(h >>> 0);
+}
+function tryParseJwtPayload(jwt) {
   try {
-    const raw = localStorage.getItem(BOT_STORE_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
+    const [, payload] = String(jwt).split(".");
+    if (!payload) return {};
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json);
   } catch {
-    return [];
+    return {};
   }
 }
-function saveBotMessages(arr) {
-  localStorage.setItem(BOT_STORE_KEY, JSON.stringify(arr));
+function getStableUserKey({ token, user }) {
+  const uId =
+    user?.id ??
+    user?.userId ??
+    user?._id ??
+    user?.user?.id ??
+    user?.user?.userId ??
+    user?.user?._id;
+  if (uId != null) return `uid:${String(uId)}`;
+  const p = tryParseJwtPayload(token);
+  const claim = p.sub || p.userId || p.id || p.email || p.username;
+  if (claim) return `claim:${String(claim)}`;
+  return `tok:${simpleHash(String(token || ""))}`;
+}
+function getBotKey(token, user) {
+  return `${BOT_STORE_PREFIX}:${getStableUserKey({ token, user })}`;
 }
 
-/* ----- Tidsformat ---- */
 function toLocalTime(iso) {
   if (!iso) return "";
   const t = Date.parse(iso);
@@ -36,7 +54,6 @@ function toLocalTime(iso) {
       });
 }
 
-/* ----- Vem är jag? (håller din gamla, robusta logik) ---- */
 function buildIdentity(currentUser, storedUsername) {
   const ids = new Set(
     [
@@ -50,9 +67,8 @@ function buildIdentity(currentUser, storedUsername) {
       currentUser?.user?._id,
     ]
       .filter((x) => x != null)
-      .map((x) => String(x))
+      .map((x) => String(x)),
   );
-
   const names = new Set(
     [
       currentUser?.username,
@@ -61,13 +77,11 @@ function buildIdentity(currentUser, storedUsername) {
       currentUser?.user?.username,
       currentUser?.user?.email,
       storedUsername,
-    ].filter(Boolean)
+    ].filter(Boolean),
   );
-
   return { ids, names };
 }
 
-/* ----- Plocka ut avsändar-ID från olika former ---- */
 function pickUid(m) {
   const cand = [
     m?.uid,
@@ -82,7 +96,6 @@ function pickUid(m) {
   return cand != null ? String(cand) : null;
 }
 
-/* ----- Normalisera inkommande meddelanden till ett gemensamt format ---- */
 function normalizeMsg(m) {
   const id = m?.id ?? m?._id ?? m?.messageId ?? m?.uuid ?? null;
   const text = m?.text ?? m?.message ?? m?.content ?? "";
@@ -103,9 +116,7 @@ function normalizeMsg(m) {
           avatar:
             m.user.avatar ??
             (m.user.username
-              ? `https://i.pravatar.cc/150?u=${encodeURIComponent(
-                  m.user.username
-                )}`
+              ? `https://i.pravatar.cc/150?u=${encodeURIComponent(m.user.username)}`
               : ""),
         }
       : null;
@@ -118,34 +129,24 @@ function normalizeMsg(m) {
   return { id, text, uid, createdAtIso, user: finalUser };
 }
 
-/* ----- Försök hitta id i djupt svar (du använder detta vid send) ---- */
 function extractIdDeep(obj, depth = 0) {
   if (!obj || typeof obj !== "object" || depth > 3) return null;
-
-  for (const k of ["id", "_id", "messageId", "uuid"]) {
-    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) {
-      return obj[k];
-    }
-  }
-
+  for (const k of ["id", "_id", "messageId", "uuid"])
+    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) return obj[k];
   for (const k of ["data", "message", "result"]) {
     if (obj[k]) {
       const found = extractIdDeep(obj[k], depth + 1);
       if (found != null) return found;
     }
   }
-
-  for (const v of Object.values(obj)) {
+  for (const v of Object.values(obj))
     if (v && typeof v === "object") {
       const found = extractIdDeep(v, depth + 1);
       if (found != null) return found;
     }
-  }
-
   return null;
 }
 
-/* ----- Namnmatch-hjälp ---- */
 function hasNameMatch(set, s) {
   if (!s) return false;
   const x = String(s).trim().toLowerCase();
@@ -153,38 +154,41 @@ function hasNameMatch(set, s) {
   return false;
 }
 
-/* ----- Är meddelandet mitt? (din ursprungslogik) ---- */
 function isMine(msg, my, usersMap) {
   if (!msg) return false;
   const uid = String(msg.uid ?? msg.userId ?? msg.user?.id ?? "");
   if (uid && my.ids.has(uid)) return true;
-
   const nameOnMsg = msg.user?.username ?? msg.username ?? msg.authorName ?? "";
   if (hasNameMatch(my.names, nameOnMsg)) return true;
-
   const mapName = uid && usersMap ? usersMap[uid] : "";
   if (hasNameMatch(my.names, mapName)) return true;
-
   const storedId = localStorage.getItem("userId");
-  if (storedId && uid && storedId === uid) return true;
-
+  if (storedId && uid && storedId === storedId) return true; // fallback
   return false;
 }
 
-/* =================================================================== */
+function uniqById(arr) {
+  const seen = new Set();
+  const out = [];
+  for (const m of arr) {
+    const id = m?.id ?? m?._id ?? m?.uuid ?? "";
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      out.push(m);
+    }
+  }
+  return out;
+}
 
 export default function Chat() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hasAuth = !!(
-      localStorage.getItem("token") || sessionStorage.getItem("token")
-    );
+    const hasAuth = !!(localStorage.getItem("token") || sessionStorage.getItem("token"));
     if (!hasAuth) navigate("/login", { replace: true });
   }, [navigate]);
 
-  const token =
-    localStorage.getItem("token") || sessionStorage.getItem("token");
+  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
   const storedName = (localStorage.getItem("username") || "").trim();
 
   const currentUser = useMemo(() => {
@@ -195,10 +199,22 @@ export default function Chat() {
     }
   }, []);
 
-  const my = useMemo(
-    () => buildIdentity(currentUser, storedName),
-    [currentUser, storedName]
-  );
+  const botKey = useMemo(() => getBotKey(token, currentUser), [token, currentUser]);
+
+  function loadBotForUser() {
+    try {
+      const raw = localStorage.getItem(botKey);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  }
+  function saveBotForUser(arr) {
+    localStorage.setItem(botKey, JSON.stringify(arr));
+  }
+
+  const my = useMemo(() => buildIdentity(currentUser, storedName), [currentUser, storedName]);
 
   const [usersMap, setUsersMap] = useState({});
   const [messages, setMessages] = useState(() => {
@@ -210,23 +226,17 @@ export default function Chat() {
   const [err, setErr] = useState("");
   const listRef = useRef(null);
 
-  const myUid =
-    [...my.ids][0] ?? currentUser?.id ?? currentUser?.userId ?? "";
+  const myUid = [...my.ids][0] ?? currentUser?.id ?? currentUser?.userId ?? "";
   const myDisplayName = (currentUser?.username || storedName || "Du").trim();
   const myAvatar =
     currentUser?.avatar ||
-    `https://i.pravatar.cc/150?u=${encodeURIComponent(
-      myDisplayName || "me"
-    )}`;
+    `https://i.pravatar.cc/150?u=${encodeURIComponent(myDisplayName || "me")}`;
 
   useEffect(() => {
     try {
       localStorage.setItem("messages", JSON.stringify(messages));
     } catch {}
-    listRef.current?.scrollTo({
-      top: listRef.current.scrollHeight,
-      behavior: "auto",
-    });
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "auto" });
   }, [messages]);
 
   useEffect(() => {
@@ -238,19 +248,18 @@ export default function Chat() {
         });
         const data = await res.json();
         if (!Array.isArray(data)) return;
-
         const map = {};
         data.forEach((u) => {
           const ids = buildIdentity(u, null).ids;
           const key = [...ids][0];
-          const name =
-            u?.username ?? u?.user ?? u?.email ?? (key ? `#${key}` : "User");
+          const name = u?.username ?? u?.user ?? u?.email ?? (key ? `#${key}` : "User");
           if (key) map[String(key)] = name;
         });
         map["bot"] = "bot";
         setUsersMap(map);
       } catch {}
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   async function load() {
@@ -258,35 +267,29 @@ export default function Chat() {
     setErr("");
     try {
       const apiData = await getMessages(token);
-      const real = Array.isArray(apiData)
-        ? apiData
-        : apiData?.messages ?? apiData?.data ?? [];
+      const real = Array.isArray(apiData) ? apiData : apiData?.messages ?? apiData?.data ?? [];
       const normalizedReal = real.map(normalizeMsg);
-      const localBot = loadBotMessages();
-      setMessages([...normalizedReal, ...localBot]);
+      const localBot = loadBotForUser();
+      setMessages(uniqById([...normalizedReal, ...localBot]));
     } catch (e) {
-      const msg =
-        e?.response?.data?.message ||
-        e?.message ||
-        "Kunde inte hämta meddelanden.";
+      const msg = e?.response?.data?.message || e?.message || "Kunde inte hämta meddelanden.";
       setErr(msg);
     }
   }
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botKey]);
 
   async function handleSend() {
     const raw = text.trim();
     if (!raw) return;
-
     const cleanText = DOMPurify.sanitize(raw, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
 
     try {
       const created = await sendMessage(token, cleanText);
-      const createdId =
-        extractIdDeep(created) ?? `${Date.now()}-${Math.random()}`;
+      const createdId = extractIdDeep(created) ?? `${Date.now()}-${Math.random()}`;
 
       const mine = normalizeMsg({
         ...(typeof created === "object" ? created : {}),
@@ -294,11 +297,7 @@ export default function Chat() {
         text: cleanText,
         userId: myUid,
         uid: String(myUid || ""),
-        user: {
-          id: myUid || null,
-          username: myDisplayName || "Jag",
-          avatar: myAvatar,
-        },
+        user: { id: myUid || null, username: myDisplayName || "Jag", avatar: myAvatar },
         createdAt: new Date().toISOString(),
       });
 
@@ -307,11 +306,7 @@ export default function Chat() {
         id: `${Date.now()}-${Math.random()}`,
         uid: "bot",
         userId: "bot",
-        user: {
-          id: "bot",
-          username: "bot",
-          avatar: "https://i.pravatar.cc/150?u=bot",
-        },
+        user: { id: "bot", username: "bot", avatar: "https://i.pravatar.cc/150?u=bot" },
         text: reply,
         createdAt: new Date().toISOString(),
       });
@@ -322,18 +317,15 @@ export default function Chat() {
       setTimeout(() => {
         setMessages((prev) => {
           const next = [...prev, bot];
-          const stored = loadBotMessages();
-          saveBotMessages([...stored, bot]);
+          const stored = loadBotForUser();
+          saveBotForUser([...stored, bot]);
           return next;
         });
       }, 900);
 
       setBotIndex((i) => (i + 1) % fakeMessages.length);
     } catch (e) {
-      const msg =
-        e?.response?.data?.message ||
-        e?.message ||
-        "Kunde inte skicka meddelandet.";
+      const msg = e?.response?.data?.message || e?.message || "Kunde inte skicka meddelandet.";
       setErr(msg);
     }
   }
@@ -345,8 +337,8 @@ export default function Chat() {
 
     if (isBot) {
       setMessages((prev) => prev.filter((x) => x.id !== m.id));
-      const kept = loadBotMessages().filter((x) => x.id !== m.id);
-      saveBotMessages(kept);
+      const kept = loadBotForUser().filter((x) => x.id !== m.id);
+      saveBotForUser(kept);
       return;
     }
 
@@ -364,14 +356,7 @@ export default function Chat() {
           <div className="chat-card">
             <div className="chat-header">
               <div className="header-user">
-                <img
-                  className="avatar"
-                  src={myAvatar}
-                  alt=""
-                  width={36}
-                  height={36}
-                  referrerPolicy="no-referrer"
-                />
+                <img className="avatar" src={myAvatar} alt="" width={36} height={36} referrerPolicy="no-referrer" />
                 <span>{myDisplayName}</span>
               </div>
             </div>
@@ -379,36 +364,19 @@ export default function Chat() {
             {err && <div className="alert">{err}</div>}
 
             <div className="chat-body" ref={listRef}>
-              {messages.length === 0 && (
-                <div className="empty-hint">Inga meddelanden ännu.</div>
-              )}
+              {messages.length === 0 && <div className="empty-hint">Inga meddelanden ännu.</div>}
 
               {messages.map((m, i) => {
                 const mineFlag = isMine(m, my, usersMap);
-                const who =
-                  m.uid === "bot"
-                    ? "bot"
-                    : usersMap[m.uid] || m.user?.username || "User";
+                const who = m.uid === "bot" ? "bot" : usersMap[m.uid] || m.user?.username || "User";
                 const time = toLocalTime(m.createdAtIso);
                 const safeHtml = DOMPurify.sanitize(m.text || "");
-                const avatarUrl = mineFlag
-                  ? myAvatar
-                  : m.user?.avatar || "https://i.pravatar.cc/150?u=user";
+                const avatarUrl = mineFlag ? myAvatar : m.user?.avatar || "https://i.pravatar.cc/150?u=user";
 
                 return (
-                  <div
-                    key={m.id ?? `local-${i}`}
-                    className={`msg-row ${mineFlag ? "me" : "other"}`}
-                  >
+                  <div key={m.id ?? `local-${i}`} className={`msg-row ${mineFlag ? "me" : "other"}`}>
                     {!mineFlag && (
-                      <img
-                        className="msg-avatar"
-                        src={avatarUrl}
-                        alt=""
-                        width={32}
-                        height={32}
-                        referrerPolicy="no-referrer"
-                      />
+                      <img className="msg-avatar" src={avatarUrl} alt="" width={32} height={32} referrerPolicy="no-referrer" />
                     )}
 
                     <div className={`bubble ${mineFlag ? "me" : "other"}`}>
@@ -417,31 +385,17 @@ export default function Chat() {
                         <small>{time}</small>
                       </div>
 
-                      <div
-                        className="text"
-                        dangerouslySetInnerHTML={{ __html: safeHtml }}
-                      />
+                      <div className="text" dangerouslySetInnerHTML={{ __html: safeHtml }} />
 
                       {(mineFlag || m.uid === "bot") && (
-                        <button
-                          className="trash"
-                          title="Ta bort"
-                          onClick={() => handleDelete(m)}
-                        >
+                        <button className="trash" title="Ta bort" onClick={() => handleDelete(m)}>
                           🗑️
                         </button>
                       )}
                     </div>
 
                     {mineFlag && (
-                      <img
-                        className="msg-avatar"
-                        src={avatarUrl}
-                        alt=""
-                        width={32}
-                        height={32}
-                        referrerPolicy="no-referrer"
-                      />
+                      <img className="msg-avatar" src={avatarUrl} alt="" width={32} height={32} referrerPolicy="no-referrer" />
                     )}
                   </div>
                 );
@@ -455,9 +409,7 @@ export default function Chat() {
                 placeholder="Skriv ett meddelande..."
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
               />
-              <button className="btn-send" onClick={handleSend}>
-                Skicka
-              </button>
+              <button className="btn-send" onClick={handleSend}>Skicka</button>
             </div>
           </div>
         </div>
