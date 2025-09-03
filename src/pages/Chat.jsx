@@ -6,7 +6,7 @@ import fakeMessages from "../messages.json";
 import "../styles/Chat.css";
 import SideNav from "../components/SideNav";
 
-const BASE_URL = "https://chatify-api.up.railway.app";
+const BASE_URL =  "/api";
 const BOT_STORE_PREFIX = "botMsgs_v1";
 
 function simpleHash(s = "") {
