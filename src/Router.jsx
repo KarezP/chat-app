@@ -1,4 +1,3 @@
-// Router.jsx
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -6,14 +5,13 @@ import Chat from "./pages/Chat";
 import Navbar from "./components/Navbar";
 
 function isAuthedNow() {
-  return !!(localStorage.getItem("token") || sessionStorage.getItem("token"));
+  return !!(sessionStorage.getItem("token") || sessionStorage.getItem("token"));
 }
 
 function AppRoutes() {
   const { pathname } = useLocation();
   const isChat = pathname === "/chat";
-  const isAuthed = isAuthedNow(); // ← läs direkt, inget React-state
-
+  const isAuthed = isAuthedNow(); 
   return (
     <>
       {!isChat && <Navbar isAuthed={isAuthed} />}

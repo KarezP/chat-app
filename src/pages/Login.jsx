@@ -47,7 +47,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hasAuth = !!(localStorage.getItem("token") || sessionStorage.getItem("token"));
+    const hasAuth = !!(sessionStorage.getItem("token") || sessionStorage.getItem("token"));
     if (hasAuth) navigate("/chat", { replace: true });
   }, [navigate]);
 
@@ -71,25 +71,20 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("token", jwt);
-      localStorage.setItem("username", (data.user?.username || form.username).trim());
-      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
-      if (data.user?.id != null) localStorage.setItem("userId", String(data.user.id));
+      sessionStorage.setItem("token", jwt);
+      sessionStorage.setItem("username", (data.user?.username || form.username).trim());
+      if (data.user) sessionStorage.setItem("user", JSON.stringify(data.user));
+      if (data.user?.id != null) sessionStorage.setItem("userId", String(data.user.id));
 
-      // MIGRERA ev. gammal global bot-historik till per-användare-nyckel
-      const oldGlobal = localStorage.getItem(BOT_STORE_PREFIX);
+      const oldGlobal = sessionStorage.getItem(BOT_STORE_PREFIX);
       if (oldGlobal) {
         const perUserKey = getBotKey(jwt, data.user);
-        // om perUserKey redan har något, låt det vinna; annars flytta över
-        if (!localStorage.getItem(perUserKey)) {
-          localStorage.setItem(perUserKey, oldGlobal);
+  
+        if (!sessionStorage.getItem(perUserKey)) {
+          sessionStorage.setItem(perUserKey, oldGlobal);
         }
-        localStorage.removeItem(BOT_STORE_PREFIX);
+        sessionStorage.removeItem(BOT_STORE_PREFIX);
       }
-
-      // Viktigt: rensa INTE bot-historik globalt här, annars försvinner den.
-      // Om du vill rensa server-cache för meddelanden kan du lämna den ifred också,
-      // Chat.jsx hämtar ändå från API vid laddning.
 
       navigate("/chat", { replace: true });
     } catch (err) {

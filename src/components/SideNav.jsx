@@ -4,7 +4,7 @@ import logo from "../assets/logo.png";
 
 function getStoredUser() {
     try {
-        const u = JSON.parse(localStorage.getItem("user") || "null");
+        const u = JSON.parse(sessionStorage.getItem("user") || "null");
         if (u && typeof u === "object") return u;
     } catch {}
     return null;
@@ -15,12 +15,12 @@ function getStoredUser() {
     const username =
         userObj?.username ??
         userObj?.user ??
-        localStorage.getItem("username") ??
+        sessionStorage.getItem("username") ??
         "Användare";
 
     const avatar =
         userObj?.avatar ??
-        localStorage.getItem("avatar") ??
+        sessionStorage.getItem("avatar") ??
         
         `https://i.pravatar.cc/80?u=${encodeURIComponent(username)}`;
 
@@ -38,7 +38,7 @@ function getStoredUser() {
 
     const handleLogout = () => {
         ["token", "user", "username", "userId", "messages", "avatar"].forEach((k) => {
-        localStorage.removeItem(k);
+        sessionStorage.removeItem(k);
         sessionStorage.removeItem(k);
     });
     

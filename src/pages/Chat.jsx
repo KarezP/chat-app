@@ -162,7 +162,7 @@ function isMine(msg, my, usersMap) {
   if (hasNameMatch(my.names, nameOnMsg)) return true;
   const mapName = uid && usersMap ? usersMap[uid] : "";
   if (hasNameMatch(my.names, mapName)) return true;
-  const storedId = localStorage.getItem("userId");
+  const storedId = sessionStorage.getItem("userId");
   if (storedId && uid && storedId === storedId) return true; // fallback
   return false;
 }
@@ -184,16 +184,16 @@ export default function Chat() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hasAuth = !!(localStorage.getItem("token") || sessionStorage.getItem("token"));
+    const hasAuth = !!(sessionStorage.getItem("token") || sessionStorage.getItem("token"));
     if (!hasAuth) navigate("/login", { replace: true });
   }, [navigate]);
 
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-  const storedName = (localStorage.getItem("username") || "").trim();
+  const token = sessionStorage.getItem("token") || sessionStorage.getItem("token");
+  const storedName = (sessionStorage.getItem("username") || "").trim();
 
   const currentUser = useMemo(() => {
     try {
-      return JSON.parse(localStorage.getItem("user") || "null");
+      return JSON.parse(sessionStorage.getItem("user") || "null");
     } catch {
       return null;
     }
@@ -203,7 +203,7 @@ export default function Chat() {
 
   function loadBotForUser() {
     try {
-      const raw = localStorage.getItem(botKey);
+      const raw = sessionStorage.getItem(botKey);
       const arr = raw ? JSON.parse(raw) : [];
       return Array.isArray(arr) ? arr : [];
     } catch {
@@ -211,14 +211,14 @@ export default function Chat() {
     }
   }
   function saveBotForUser(arr) {
-    localStorage.setItem(botKey, JSON.stringify(arr));
+    sessionStorage.setItem(botKey, JSON.stringify(arr));
   }
 
   const my = useMemo(() => buildIdentity(currentUser, storedName), [currentUser, storedName]);
 
   const [usersMap, setUsersMap] = useState({});
   const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem("messages");
+    const saved = sessionStorage.getItem("messages");
     return saved ? JSON.parse(saved) : [];
   });
   const [text, setText] = useState("");
@@ -234,7 +234,7 @@ export default function Chat() {
 
   useEffect(() => {
     try {
-      localStorage.setItem("messages", JSON.stringify(messages));
+      sessionStorage.setItem("messages", JSON.stringify(messages));
     } catch {}
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "auto" });
   }, [messages]);
@@ -259,7 +259,6 @@ export default function Chat() {
         setUsersMap(map);
       } catch {}
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   async function load() {
@@ -279,7 +278,6 @@ export default function Chat() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botKey]);
 
   async function handleSend() {

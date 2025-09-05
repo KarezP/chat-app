@@ -1,50 +1,23 @@
-plugins = []
-headers = []
-
-[functions]
-
-[functions."*"]
-
 [build]
-publish = "/Users/karez/snabbsnack/dist"
-publishOrigin = "ui"
-commandOrigin = "ui"
-command = "npm run build"
+  command = "npm run build"
+  publish = "dist"
 
-[build.environment]
-
-[build.processing]
-
-[build.processing.css]
-
-[build.processing.html]
-
-[build.processing.images]
-
-[build.processing.js]
-
-[build.services]
-
+# Proxy till Railway-API:t
 [[redirects]]
-from = "/api/*"
-to = "https://chatify-api.up.railway.app/:splat"
-status = 200.0
-force = false
+  from = "/api/*"
+  to   = "https://chatify-api.up.railway.app/:splat"
+  status = 200
+  force  = true
 
-[redirects.query]
-
-[redirects.conditions]
-
-[redirects.headers]
-
+# SPA-fallback
 [[redirects]]
-from = "/*"
-to = "/index.html"
-status = 200.0
-force = false
+  from = "/*"
+  to   = "/index.html"
+  status = 200
 
-[redirects.query]
-
-[redirects.conditions]
-
-[redirects.headers]
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; connect-src 'self'; img-src 'self' https://i.pravatar.cc data:; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; base-uri 'self'; frame-ancestors 'self'"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
